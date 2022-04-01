@@ -134,11 +134,16 @@ func AddNamedMigration(filename string, up func(*sql.Tx) error, down func(*sql.T
 	v, _ := NumericComponent(filename)
 	migration := &Migration{Version: v, Next: -1, Previous: -1, Registered: true, UpFn: up, DownFn: down, Source: filename}
 
-	if existing, ok := registeredGoMigrations[v]; ok {
-		panic(fmt.Sprintf("failed to add migration %q: version conflicts with %q", filename, existing.Source))
+	if _, ok := registeredGoMigrations[v]; !ok {
+		registeredGoMigrations[v] = migration
 	}
+}
 
-	registeredGoMigrations[v] = migration
+// ResetRegisteredGoMigrations resets all registered go migration files
+// this is useful when you are running multiple migrations against multiple database
+// with each of which has a different set of migration files.
+func ResetRegisteredGoMigrations() {
+	registeredGoMigrations = map[int64]*Migration{}
 }
 
 // CollectMigrations returns all the valid looking migration scripts in the
@@ -173,7 +178,8 @@ func CollectMigrations(dirpath string, current, target int64) (Migrations, error
 			return nil, err
 		}
 		if versionFilter(v, current, target) {
-			migrations = append(migrations, migration)
+			m := *migration
+			migrations = append(migrations, &m)
 		}
 	}
 
